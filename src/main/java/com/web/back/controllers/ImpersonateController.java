@@ -14,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/impersonate/")
-@Tag(name = "Actua Como")
+@Tag(name = "Impersonate")
 public class ImpersonateController {
     private final ImpersonateService impersonateService;
     private final JwtService jwtService;

@@ -7,6 +7,7 @@ import com.web.back.model.responses.CustomResponse;
 import com.web.back.model.responses.RegistroHorariosResponse;
 import com.web.back.services.JwtService;
 import com.web.back.services.TimeSheetService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,7 @@ import java.util.List;
 
 @RequestMapping("/timesheet/")
 @RestController
+@Tag(name = "Timesheet")
 public class TimeSheetController {
     private final TimeSheetService timeSheetService;
     private final JwtService jwtService;

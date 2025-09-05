@@ -6,6 +6,7 @@ import com.web.back.model.requests.EvaluationRequest;
 import com.web.back.model.responses.CustomResponse;
 import com.web.back.services.EvaluationService;
 import com.web.back.services.JwtService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @RequestMapping("/evaluation/")
 @RestController
+@Tag(name = "Evaluations")
 public class EvaluationController {
     private final JwtService jwtService;
     private final EvaluationService evaluationService;
@@ -43,7 +45,7 @@ public class EvaluationController {
 
             return ResponseEntity.ok(new CustomResponse<Void>().ok(null, "Evaluaciones enviadas exitosamente!"));
         }catch (Exception e) {
-            String errorMessage = "";
+            String errorMessage;
 
             if (e instanceof HttpClientErrorException) {
                 errorMessage = "Error al enviar las evaluaciones a SAP. Contacta al administrador!";

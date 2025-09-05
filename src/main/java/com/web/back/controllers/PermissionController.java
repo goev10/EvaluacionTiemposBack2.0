@@ -6,6 +6,7 @@ import com.web.back.model.dto.PermissionDto;
 import com.web.back.model.responses.CustomResponse;
 import com.web.back.repositories.PermissionRepository;
 import com.web.back.services.JwtService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RequestMapping("/permission/")
 @RestController
+@Tag(name = "Permission")
 public class PermissionController {
     private final JwtService jwtService;
     private final PermissionRepository permissionRepository;
