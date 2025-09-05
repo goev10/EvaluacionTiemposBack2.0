@@ -7,6 +7,7 @@ import com.web.back.model.requests.ProfileRequest;
 import com.web.back.model.responses.CustomResponse;
 import com.web.back.services.JwtService;
 import com.web.back.services.ProfileService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,7 @@ import java.util.List;
 
 @RequestMapping("/perfil/")
 @RestController
+@Tag(name = "Profile")
 public class ProfileController {
     private final JwtService jwtService;
     private final ProfileService profileService;

@@ -17,7 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/entrada-salida")
-@Tag(name = "Entrada y salida")
+@Tag(name = "Entry and exit")
 public class EntryAndExitController {
     private static final Logger logger = LoggerFactory.getLogger(EntryAndExitController.class);
 
