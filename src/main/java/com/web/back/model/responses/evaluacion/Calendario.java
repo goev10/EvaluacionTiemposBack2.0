@@ -17,4 +17,5 @@ public class Calendario {
     private String begda;
     private String endda;
     private String cerrado;
+    private String mostrar;
 }
