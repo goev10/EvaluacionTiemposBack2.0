@@ -28,11 +28,11 @@ public class UserService {
     }
 
     @Transactional(rollbackFor = {Exception.class})
-    public Mono<User> register(RegisterUserRequest request) {
+    public User register(RegisterUserRequest request) {
 
         var error = validateUserRegisterRequest(request);
         if (error != null) {
-            return Mono.error(new Throwable(error));
+            throw new RuntimeException(error);
         }
 
         User user = new User();
@@ -47,7 +47,7 @@ public class UserService {
 
         saveUserProfiles(user, request.getProfiles());
 
-        return Mono.just(user);
+        return user;
     }
 
     @Transactional(rollbackFor = {Exception.class})
@@ -112,6 +112,11 @@ public class UserService {
     @Transactional
     public Optional<User> getByUserName(String userName) {
         return userRepository.findByUsername(userName);
+    }
+
+    @Transactional
+    public Optional<User> getById(int userId) {
+        return userRepository.findById(userId);
     }
 
     private String validateUserRegisterRequest(RegisterUserRequest request) {

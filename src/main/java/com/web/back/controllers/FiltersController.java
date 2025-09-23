@@ -22,13 +22,14 @@ public class FiltersController {
     }
 
     @GetMapping(value="getFilerData")
-    public ResponseEntity<CustomResponse<EvaluacionApiResponse>> getFilterDataS(@RequestHeader("Authorization") String bearerToken)
+    public ResponseEntity<CustomResponse<EvaluacionApiResponse>> getFilterDataS()
     {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
-        String username = jwtService.getUsernameFromToken(bearerToken);
+        String username = jwtService.getCurrentUserName();
 
         var filters = filtersService.getFilters(username).block();
 

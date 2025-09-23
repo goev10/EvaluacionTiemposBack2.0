@@ -1,7 +1,7 @@
 package com.web.back.controllers;
 
-import com.web.back.model.responses.AuthResponse;
 import com.web.back.model.requests.LoginRequest;
+import com.web.back.model.responses.AuthResponse;
 import com.web.back.model.responses.CustomResponse;
 import com.web.back.services.AuthService;
 import com.web.back.services.ImpersonateService;
@@ -31,8 +31,8 @@ public class AuthController {
     }
 
     @GetMapping(value = "/impersonate")
-    public ResponseEntity<CustomResponse<AuthResponse>> getAuthForImpersonation(@RequestHeader("Authorization") String bearerToken, String targetUserName) {
-        var userName = jwtService.getUsernameFromToken(bearerToken);
+    public ResponseEntity<CustomResponse<AuthResponse>> getAuthForImpersonation(String targetUserName) {
+        var userName = jwtService.getCurrentUserName();
         var impersonations = impersonateService.getByUser(userName);
 
         if(impersonations.isError() && impersonations.getData().stream().noneMatch(impersonation -> impersonation.targetUserName().equals(targetUserName))) {

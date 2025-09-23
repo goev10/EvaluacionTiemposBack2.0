@@ -5,7 +5,10 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -52,6 +55,24 @@ public class JwtService {
         token = token.replace("Bearer","").trim();
         final String username = getUsernameFromToken(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    }
+
+    public String[] getCurrentUserPermissions() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) return new String[0];
+        HttpServletRequest request = attrs.getRequest();
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null) return new String[0];
+        return getPermissionsFromToken(authHeader);
+    }
+
+    public String getCurrentUserName() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) return "";
+        HttpServletRequest request = attrs.getRequest();
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null) return "";
+        return getUsernameFromToken(authHeader);
     }
 
     private Claims getAllClaims(String token) {

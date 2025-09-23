@@ -9,7 +9,6 @@ import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,8 +27,9 @@ public class PermissionController {
     }
 
     @GetMapping(value = "getAll")
-    public ResponseEntity<CustomResponse<List<PermissionDto>>> getAll(@RequestHeader("Authorization") String bearerToken) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<List<PermissionDto>>> getAll() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 

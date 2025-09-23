@@ -27,19 +27,21 @@ public class UserController {
     }
 
     @PostMapping(value = "register")
-    public Mono<CustomResponse<UserDto>> register(@RequestHeader("Authorization") String bearerToken, @RequestBody RegisterUserRequest request) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken))) {
-            return Mono.just(new CustomResponse<UserDto>().forbidden());
+    public CustomResponse<UserDto> register(@RequestBody RegisterUserRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions)) {
+            return new CustomResponse<UserDto>().forbidden();
         }
 
-        return userService.register(request)
-                .map(user -> new CustomResponse<UserDto>().ok(UserDtoMapper.mapFrom(user)))
-                .doOnError(ex -> new CustomResponse<UserDto>().badRequest(ex.getMessage()));
+        var user = userService.register(request);
+
+        return new CustomResponse<UserDto>().ok(UserDtoMapper.mapFrom(user));
     }
 
     @PutMapping("update/{id}")
-    public Mono<CustomResponse<UserDto>> update(@RequestHeader("Authorization") String bearerToken, @PathVariable Integer id, @RequestBody UserUpdateRequest request) {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    public Mono<CustomResponse<UserDto>> update(@PathVariable Integer id, @RequestBody UserUpdateRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
             return Mono.just(new CustomResponse<UserDto>().forbidden());
         }
 
@@ -49,8 +51,9 @@ public class UserController {
     }
 
     @PutMapping("disable/{userName}")
-    public Mono<CustomResponse<UserDto>> disable(@RequestHeader("Authorization") String bearerToken, @PathVariable String userName) {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    public Mono<CustomResponse<UserDto>> disable(@PathVariable String userName) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
             return Mono.just(new CustomResponse<UserDto>().forbidden());
         }
 
@@ -59,8 +62,9 @@ public class UserController {
     }
 
     @PutMapping("enable/{userName}")
-    public Mono<CustomResponse<UserDto>> enable(@RequestHeader("Authorization") String bearerToken, @PathVariable String userName) {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    public Mono<CustomResponse<UserDto>> enable(@PathVariable String userName) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
             return Mono.just(new CustomResponse<UserDto>().forbidden());
         }
 
@@ -69,8 +73,9 @@ public class UserController {
     }
 
     @GetMapping(value = "getAll")
-    public Mono<CustomResponse<List<UserDto>>> getAll(@RequestHeader("Authorization") String bearerToken) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    public Mono<CustomResponse<List<UserDto>>> getAll() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return Mono.just(new CustomResponse<List<UserDto>>().forbidden());
         }
         return userService.getAll()
@@ -79,18 +84,20 @@ public class UserController {
     }
 
     @GetMapping("getOne/{userName}")
-    public Mono<CustomResponse<UserDto>> getOne(@RequestHeader("Authorization") String bearerToken, @PathVariable String userName) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
-            return Mono.just(new CustomResponse<UserDto>().forbidden());
+    public CustomResponse<UserDto> getOne(@PathVariable String userName) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
+            return new CustomResponse<UserDto>().forbidden();
         }
 
-        return Mono.just(new CustomResponse<UserDto>().ok(
-                UserDtoMapper.mapFrom(userService.getByUserName(userName))));
+        return new CustomResponse<UserDto>().ok(
+                UserDtoMapper.mapFrom(userService.getByUserName(userName)));
     }
 
     @DeleteMapping("delete/{id}")
-    public Mono<CustomResponse<String>> enable(@RequestHeader("Authorization") String bearerToken, @PathVariable Integer id) {
-        if (!PermissionsFilter.canDelete(jwtService.getPermissionsFromToken(bearerToken))) {
+    public Mono<CustomResponse<String>> enable(@PathVariable Integer id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canDelete(permissions)) {
             return Mono.just(new CustomResponse<String>().forbidden());
         }
 

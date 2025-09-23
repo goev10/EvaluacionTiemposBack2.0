@@ -25,8 +25,9 @@ public class ImpersonateController {
     }
 
     @PostMapping("/insert")
-    public ResponseEntity<CustomResponse<ImpersonateResponse>> insert(@RequestHeader("Authorization") String bearerToken, @RequestBody ImpersonateRequest request) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<ImpersonateResponse>> insert(@RequestBody ImpersonateRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -34,8 +35,9 @@ public class ImpersonateController {
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<CustomResponse<Boolean>> delete(@RequestHeader("Authorization") String bearerToken, @PathVariable Integer id) {
-        if (!PermissionsFilter.canDelete(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<Boolean>> delete(@PathVariable Integer id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canDelete(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -43,8 +45,9 @@ public class ImpersonateController {
     }
 
     @GetMapping("/getAll")
-    public ResponseEntity<CustomResponse<List<ImpersonateResponse>>> getAll(@RequestHeader("Authorization") String bearerToken) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<List<ImpersonateResponse>>> getAll() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -52,8 +55,8 @@ public class ImpersonateController {
     }
 
     @GetMapping("/getByUser")
-    public ResponseEntity<CustomResponse<List<ImpersonateResponse>>> getByUser(@RequestHeader("Authorization") String bearerToken) {
-        String username = jwtService.getUsernameFromToken(bearerToken);
+    public ResponseEntity<CustomResponse<List<ImpersonateResponse>>> getByUser() {
+        String username = jwtService.getCurrentUserName();
         return ResponseEntity.ok(impersonateService.getByUser(username));
     }
 }
