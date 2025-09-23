@@ -26,8 +26,9 @@ public class ProfileController {
     }
 
     @GetMapping(value = "getAll")
-    public ResponseEntity<CustomResponse<List<ProfileDto>>> getAll(@RequestHeader("Authorization") String bearerToken) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<List<ProfileDto>>> getAll() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -36,8 +37,9 @@ public class ProfileController {
     }
 
     @PostMapping(value = "register")
-    public ResponseEntity<CustomResponse<ProfileDto>> register(@RequestHeader("Authorization") String bearerToken, @RequestBody ProfileRequest request) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<ProfileDto>> register(@RequestBody ProfileRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -47,8 +49,9 @@ public class ProfileController {
     }
 
     @PutMapping(value = "update/{id}")
-    public ResponseEntity<CustomResponse<ProfileDto>> update(@RequestHeader("Authorization") String bearerToken, @RequestBody ProfileRequest request, @PathVariable Integer id) {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<ProfileDto>> update(@RequestBody ProfileRequest request, @PathVariable Integer id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -58,8 +61,9 @@ public class ProfileController {
     }
 
     @DeleteMapping(value = "delete/{id}")
-    public ResponseEntity<CustomResponse<Void>> delete(@RequestHeader("Authorization") String bearerToken, @PathVariable Integer id) {
-        if (!PermissionsFilter.canDelete(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<Void>> delete(@PathVariable Integer id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canDelete(permissions)) {
             return ResponseEntity.status(401).build();
         }
 

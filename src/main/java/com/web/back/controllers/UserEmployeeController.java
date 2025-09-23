@@ -23,10 +23,9 @@ public class UserEmployeeController {
     }
 
     @GetMapping("{userId}")
-    public ResponseEntity<UserEmployeesDTO> getAllByUserId(
-            @RequestHeader("Authorization") String bearerToken,
-            @PathVariable Integer userId) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<UserEmployeesDTO> getAllByUserId(@PathVariable Integer userId) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -35,11 +34,11 @@ public class UserEmployeeController {
 
     @PostMapping("{userId}/bulk")
     public ResponseEntity<UserEmployeesDTO> bulkInsert(
-            @RequestHeader("Authorization") String bearerToken,
             @PathVariable Integer userId,
             @RequestBody List<String> employeeNumbers) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken)) &&
-                !PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions) &&
+                !PermissionsFilter.canEdit(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -48,10 +47,10 @@ public class UserEmployeeController {
 
     @DeleteMapping("{userId}/{employeeNumber}")
     public ResponseEntity<Void> deleteRelation(
-            @RequestHeader("Authorization") String bearerToken,
             @PathVariable Integer userId,
             @PathVariable String employeeNumber) {
-        if (!PermissionsFilter.canDelete(jwtService.getPermissionsFromToken(bearerToken))) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canDelete(permissions)) {
             return ResponseEntity.status(401).build();
         }
 

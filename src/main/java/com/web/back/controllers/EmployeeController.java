@@ -1,104 +1,77 @@
 package com.web.back.controllers;
 
 import com.web.back.filters.PermissionsFilter;
-import com.web.back.model.dto.EvaluationsDataDto;
-import com.web.back.model.dto.GetEmployeesRequestDto;
-import com.web.back.model.dto.RegistroTiemposDto;
-import com.web.back.model.requests.GenerateXlsRequest;
-import com.web.back.model.responses.CustomResponse;
+import com.web.back.model.dto.EmployeeDto;
+import com.web.back.model.requests.EmployeeRequest;
 import com.web.back.services.EmployeeService;
 import com.web.back.services.JwtService;
-import com.web.back.utils.DateUtil;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/empleado/")
+@RequestMapping("/employee")
 @Tag(name = "Employee")
 public class EmployeeController {
-    private final EmployeeService employeeService;
     private final JwtService jwtService;
+    private final EmployeeService employeeService;
 
-    public EmployeeController(EmployeeService employeeService, JwtService jwtService) {
-        this.employeeService = employeeService;
+    public EmployeeController(JwtService jwtService, EmployeeService employeeService) {
         this.jwtService = jwtService;
+        this.employeeService = employeeService;
     }
 
-    @PostMapping(value = "getAll")
-    public ResponseEntity<CustomResponse<EvaluationsDataDto>> getEmployeesEvaluations(@RequestHeader("Authorization") String bearerToken, @RequestBody GetEmployeesRequestDto requestDto) {
-        if (!PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    @GetMapping
+    public ResponseEntity<List<EmployeeDto>> getAll() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
-        String username = jwtService.getUsernameFromToken(bearerToken);
-
-        return ResponseEntity.ok(employeeService.getEmployeesByFilters(requestDto.beginDate(), requestDto.endDate(), requestDto.sociedad(), requestDto.areaNomina(), username, requestDto.extraEmployeesData()));
+        return ResponseEntity.ok(employeeService.getAll());
     }
 
-    @PostMapping(value = "getAll/sync")
-    public ResponseEntity<CustomResponse<EvaluationsDataDto>> getEmployeesEvaluationsAndSync(@RequestHeader("Authorization") String bearerToken, @RequestBody GetEmployeesRequestDto requestDto) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken)) && !PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    @GetMapping("{id}")
+    public ResponseEntity<EmployeeDto> getByEmployeeId(@PathVariable String id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
-        String username = jwtService.getUsernameFromToken(bearerToken);
-
-        return ResponseEntity.ok(employeeService.getEmployeesCleanSync(requestDto.beginDate(), requestDto.endDate(), requestDto.sociedad(), requestDto.areaNomina(), username, requestDto.extraEmployeesData()));
+        return ResponseEntity.ok(employeeService.getEmployeeById(id));
     }
 
-    @GetMapping(value = "getTimesheetInfo")
-    public ResponseEntity<CustomResponse<List<RegistroTiemposDto>>> getTimesheetInfo(@RequestHeader("Authorization") String bearerToken, String beginDate, String endDate) {
-        if (!PermissionsFilter.canCreate(jwtService.getPermissionsFromToken(bearerToken)) && !PermissionsFilter.canRead(jwtService.getPermissionsFromToken(bearerToken))) {
+    @GetMapping("number/{employeeNumber}")
+    public ResponseEntity<EmployeeDto> getByEmployeeNumber(@PathVariable String employeeNumber) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canRead(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
-        String username = jwtService.getUsernameFromToken(bearerToken);
-
-        return ResponseEntity.ok(employeeService.getRegistroTiempos(beginDate, endDate, username));
+        return ResponseEntity.ok(employeeService.getEmployeeByEmployeeNumber(employeeNumber));
     }
 
-    @PostMapping(value = "timesheets")
-    public ResponseEntity<CustomResponse<Void>> sendTimeSheetChanges(@RequestHeader("Authorization") String bearerToken, @RequestBody List<RegistroTiemposDto> registroTiemposDtos) {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+    @PostMapping("bulk")
+    public ResponseEntity<List<EmployeeDto>> bulkInsert(@RequestBody List<EmployeeRequest> employees) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions) &&
+                !PermissionsFilter.canEdit(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
-        var response = employeeService.sendTimeSheetChanges(registroTiemposDtos);
-
-        if (response != null && response.getStatusCode().is2xxSuccessful()) {
-            return ResponseEntity.ok(new CustomResponse<Void>().ok(null, "Cambios aplicados exitosamente!"));
-        }
-
-        return ResponseEntity.ok(new CustomResponse<Void>().internalError("Algo fallo al enviar los cambios. Contacta al administrador!"));
+        return ResponseEntity.ok(employeeService.upsertEmployees(employees));
     }
 
-    @PostMapping(value = "/incidencesReportToXls")
-    public ResponseEntity<byte[]> logToExcel(@RequestHeader("Authorization") String bearerToken, @RequestBody GenerateXlsRequest request) {
-        try {
-            final byte[] data = employeeService.getLogsXlsData(request);
-
-            HttpHeaders header = new HttpHeaders();
-            header.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8"));
-            header.setContentLength(data.length);
-            header.setContentDispositionFormData("filename", getFileName(request));
-
-            return new ResponseEntity<>(data, header, HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    @DeleteMapping("{id}")
+    public ResponseEntity<Void> deleteRelation(@PathVariable String id) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canDelete(permissions)) {
+            return ResponseEntity.status(401).build();
         }
-    }
 
-    private String getFileName(GenerateXlsRequest request) {
-        return String.format("%s-%s-%s-%s.xlsx",
-                DateUtil.clearSymbols(request.beginDate()),
-                DateUtil.clearSymbols(request.endDate()),
-                request.sociedad().replace(" ", ""),
-                request.areaNomina().replace(" ", ""));
+        employeeService.deleteEmployeeById(id);
+        return ResponseEntity.noContent().build();
     }
 }

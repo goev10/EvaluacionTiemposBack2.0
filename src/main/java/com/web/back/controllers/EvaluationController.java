@@ -26,17 +26,18 @@ public class EvaluationController {
     }
 
     @PutMapping(value="evaluations")
-    public ResponseEntity<CustomResponse<List<EvaluationDto>>> updateRegistros(@RequestHeader("Authorization") String bearerToken, @RequestBody EvaluationRequest request)
+    public ResponseEntity<CustomResponse<List<EvaluationDto>>> updateRegistros(@RequestBody EvaluationRequest request)
     {
-        request.setUserName(jwtService.getUsernameFromToken(bearerToken));
+        request.setUserName(jwtService.getCurrentUserName());
 
         return ResponseEntity.ok(evaluationService.updateEvaluations(request));
     }
 
     @PostMapping(value="evaluations")
-    public ResponseEntity<CustomResponse<Void>> sendApprovedEvaluationsToSap(@RequestHeader("Authorization") String bearerToken, @RequestBody EvaluationRequest request)
+    public ResponseEntity<CustomResponse<Void>> sendApprovedEvaluationsToSap(@RequestBody EvaluationRequest request)
     {
-        if (!PermissionsFilter.canEdit(jwtService.getPermissionsFromToken(bearerToken))) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -57,8 +58,9 @@ public class EvaluationController {
     }
 
     @GetMapping(value = "evaluations")
-    public ResponseEntity<CustomResponse<List<EvaluationDto>>> getAllEmployeeEvaluations(@RequestHeader("Authorization") String bearerToken) {
-        if (!PermissionsFilter.isSuperUser(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<List<EvaluationDto>>> getAllEmployeeEvaluations() {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.isSuperUser(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -66,9 +68,9 @@ public class EvaluationController {
     }
 
     @GetMapping(value = "evaluations/filtered")
-    public ResponseEntity<CustomResponse<List<EvaluationDto>>> getAllEmployeeEvaluationsByFilters(@RequestHeader("Authorization") String bearerToken,
-                                                                                                  String beginDate, String endDate, String sociedad, String areaNomina) {
-        if (!PermissionsFilter.isSuperUser(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<List<EvaluationDto>>> getAllEmployeeEvaluationsByFilters(String beginDate, String endDate, String sociedad, String areaNomina) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.isSuperUser(permissions)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -76,8 +78,9 @@ public class EvaluationController {
     }
 
     @DeleteMapping(value = "evaluations")
-    public ResponseEntity<CustomResponse<Void>> deleteEvaluations(@RequestHeader("Authorization") String bearerToken, @RequestBody List<Integer> evaluationsToRemove) {
-        if (!PermissionsFilter.isSuperUser(jwtService.getPermissionsFromToken(bearerToken))) {
+    public ResponseEntity<CustomResponse<Void>> deleteEvaluations(@RequestBody List<Integer> evaluationsToRemove) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.isSuperUser(permissions)) {
             return ResponseEntity.status(401).build();
         }
 

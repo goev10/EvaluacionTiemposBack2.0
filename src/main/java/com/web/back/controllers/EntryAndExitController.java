@@ -5,7 +5,7 @@ import com.web.back.model.dto.ABCEmployeeDTO;
 import com.web.back.model.enumerators.PermissionsEnum;
 import com.web.back.model.requests.EntryExitMarkRequest;
 import com.web.back.model.responses.CustomResponse;
-import com.web.back.services.EmployeeService;
+import com.web.back.services.EmpleadoService;
 import com.web.back.services.EntryAndExitService;
 import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,19 +22,20 @@ public class EntryAndExitController {
     private static final Logger logger = LoggerFactory.getLogger(EntryAndExitController.class);
 
     private final EntryAndExitService entryAndExitService;
-    private final EmployeeService employeeService;
+    private final EmpleadoService empleadoService;
     private final JwtService jwtService;
 
-    public EntryAndExitController(EntryAndExitService entryAndExitService, EmployeeService employeeService, JwtService jwtService) {
+    public EntryAndExitController(EntryAndExitService entryAndExitService, EmpleadoService empleadoService, JwtService jwtService) {
         this.entryAndExitService = entryAndExitService;
-        this.employeeService = employeeService;
+        this.empleadoService = empleadoService;
         this.jwtService = jwtService;
     }
 
     @PostMapping
-    public CustomResponse<Void> registerEntryAndExitMarks(@RequestHeader("Authorization") String bearerToken, @RequestBody List<EntryExitMarkRequest> entryAndExitMarks) {
+    public CustomResponse<Void> registerEntryAndExitMarks(@RequestBody List<EntryExitMarkRequest> entryAndExitMarks) {
+        var permissions = jwtService.getCurrentUserPermissions();
         logger.info("POST /entrada-salida called with body: {}", entryAndExitMarks);
-        if (!PermissionsFilter.hasPermission(jwtService.getPermissionsFromToken(bearerToken), PermissionsEnum.CARGAR_MARCAJES)) {
+        if (!PermissionsFilter.hasPermission(permissions, PermissionsEnum.CARGAR_MARCAJES)) {
             logger.error("No tienes permisos para realizar esta acción");
             return new CustomResponse<Void>().forbidden("No tienes permisos para realizar esta acción");
         }
@@ -43,12 +44,12 @@ public class EntryAndExitController {
     }
 
     @GetMapping(value = "/ABCEmpleado")
-    public CustomResponse<List<ABCEmployeeDTO>> getABCEmployees(@RequestHeader("Authorization") String bearerToken,
-                                                                                String carga, String beginDate, String endDate) {
-        if (!PermissionsFilter.hasPermission(jwtService.getPermissionsFromToken(bearerToken), PermissionsEnum.CARGAR_MARCAJES)) {
+    public CustomResponse<List<ABCEmployeeDTO>> getABCEmployees(String carga, String beginDate, String endDate) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.hasPermission(permissions, PermissionsEnum.CARGAR_MARCAJES)) {
             return new CustomResponse<List<ABCEmployeeDTO>>().forbidden("No tienes permisos para realizar esta acción");
         }
 
-        return new CustomResponse<List<ABCEmployeeDTO>>().ok(employeeService.getABCEmployees(carga, beginDate, endDate));
+        return new CustomResponse<List<ABCEmployeeDTO>>().ok(empleadoService.getABCEmployees(carga, beginDate, endDate));
     }
 }
