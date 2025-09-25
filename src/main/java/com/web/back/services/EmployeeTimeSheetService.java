@@ -11,6 +11,7 @@ import com.web.back.repositories.TimesheetsRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,12 +57,28 @@ public class EmployeeTimeSheetService {
     }
 
     public List<EmployeeTimeSheetDto> add(EmployeeTimeSheetRequest request) {
+        var overlaps = employeeTimesheetsRepository.findOverlappingTimesheets(
+                request.employeeNumber(), request.fromDate(), request.toDate());
+
+        if (!overlaps.isEmpty()) {
+            throw new RuntimeException("Employee already has a timesheet assigned in the given date range.");
+        }
+
         EmployeeTimesheet entity = mapRequestToEntity(request);
         employeeTimesheetsRepository.save(entity);
         return getAll();
     }
 
     public List<EmployeeTimeSheetDto> update(String id, EmployeeTimeSheetRequest request) {
+        var overlaps = employeeTimesheetsRepository.findOverlappingTimesheets(
+                request.employeeNumber(), request.fromDate(), request.toDate())
+                .stream().filter(entity -> !entity.getId().equals(UUID.fromString(id)))
+                .toList();
+
+        if (!overlaps.isEmpty()) {
+            throw new RuntimeException("Employee already has a timesheet assigned in the given date range.");
+        }
+
         EmployeeTimesheet entity = employeeTimesheetsRepository.findById(UUID.fromString(id))
                 .orElseThrow(() -> new RuntimeException("Not found"));
         updateEntityFromRequest(entity, request);

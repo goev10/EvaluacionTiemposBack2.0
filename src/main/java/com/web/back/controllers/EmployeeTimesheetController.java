@@ -6,6 +6,7 @@ import com.web.back.model.requests.EmployeeTimeSheetRequest;
 import com.web.back.services.EmployeeTimeSheetService;
 import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -65,7 +66,7 @@ public class EmployeeTimesheetController {
     }
 
     @PostMapping
-    public ResponseEntity<List<EmployeeTimeSheetDto>> add(@RequestBody EmployeeTimeSheetRequest request) {
+    public ResponseEntity<List<EmployeeTimeSheetDto>> add(@Valid @RequestBody EmployeeTimeSheetRequest request) {
         var permissions = jwtService.getCurrentUserPermissions();
         if (!PermissionsFilter.canCreate(permissions)) {
             return ResponseEntity.status(401).build();
@@ -77,7 +78,7 @@ public class EmployeeTimesheetController {
     @PutMapping("{id}")
     public ResponseEntity<List<EmployeeTimeSheetDto>> add(
             @PathVariable String id,
-            @RequestBody EmployeeTimeSheetRequest request) {
+            @Valid @RequestBody EmployeeTimeSheetRequest request) {
         var permissions = jwtService.getCurrentUserPermissions();
         if (!PermissionsFilter.canEdit(permissions)) {
             return ResponseEntity.status(401).build();
