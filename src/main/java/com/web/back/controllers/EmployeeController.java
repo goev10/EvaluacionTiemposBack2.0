@@ -2,7 +2,9 @@ package com.web.back.controllers;
 
 import com.web.back.filters.PermissionsFilter;
 import com.web.back.model.dto.EmployeeDto;
+import com.web.back.model.dto.TimeSheetDto;
 import com.web.back.model.requests.EmployeeRequest;
+import com.web.back.model.requests.TimeSheetRequest;
 import com.web.back.services.EmployeeService;
 import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,6 +64,28 @@ public class EmployeeController {
         }
 
         return ResponseEntity.ok(employeeService.upsertEmployees(employees));
+    }
+
+    @PostMapping
+    public ResponseEntity<EmployeeDto> add(@RequestBody EmployeeRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canCreate(permissions)) {
+            return ResponseEntity.status(401).build();
+        }
+
+        return ResponseEntity.ok(employeeService.upsertEmployee(request));
+    }
+
+    @PutMapping("{id}")
+    public ResponseEntity<EmployeeDto> add(
+            @PathVariable String id,
+            @RequestBody EmployeeRequest request) {
+        var permissions = jwtService.getCurrentUserPermissions();
+        if (!PermissionsFilter.canEdit(permissions)) {
+            return ResponseEntity.status(401).build();
+        }
+
+        return ResponseEntity.ok(employeeService.update(id, request));
     }
 
     @DeleteMapping("{id}")

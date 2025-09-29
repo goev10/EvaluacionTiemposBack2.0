@@ -1,8 +1,11 @@
 package com.web.back.services;
 
 import com.web.back.model.dto.EmployeeDto;
+import com.web.back.model.dto.TimeSheetDto;
 import com.web.back.model.entities.Employee;
+import com.web.back.model.entities.Timesheet;
 import com.web.back.model.requests.EmployeeRequest;
+import com.web.back.model.requests.TimeSheetRequest;
 import com.web.back.repositories.EmployeeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,11 +44,36 @@ public class EmployeeService {
 
     public List<EmployeeDto> upsertEmployees(List<EmployeeRequest> employees) {
         List<Employee> entities = employees.stream().map(req -> employeeRepository.findByNumEmployee(req.employeeNumber())
-                .map(existing -> getEmployee(req, existing))
+                .map(existing -> mapToEntity(req, existing))
                 .orElseGet(() -> mapToEntity(req))).collect(Collectors.toList());
 
         List<Employee> saved = employeeRepository.saveAll(entities);
         return saved.stream().map(this::mapToDto).collect(Collectors.toList());
+    }
+
+    public EmployeeDto upsertEmployee(EmployeeRequest employee) {
+        var existing = employeeRepository.findByNumEmployee(employee.employeeNumber());
+
+        if (existing.isPresent()) { throw new RuntimeException("Employee with the same Employee Number Found!"); }
+
+        var entity = mapToEntity(employee);
+
+        Employee saved = employeeRepository.save(entity);
+        return mapToDto(saved);
+    }
+
+    public EmployeeDto update(String employeeId, EmployeeRequest request) {
+        var existing = employeeRepository.findById(UUID.fromString(employeeId));
+
+        if (existing.isEmpty()) { throw new RuntimeException("Employee not found"); }
+
+        var entity = existing.get();
+        mapToEntity(request, entity);
+        entity.setNumEmployee(request.employeeNumber());
+
+        var updated = employeeRepository.save(entity);
+
+        return mapToDto(updated);
     }
 
     public void deleteEmployeeById(String id) {
@@ -55,10 +83,10 @@ public class EmployeeService {
     private Employee mapToEntity(EmployeeRequest req) {
         Employee e = new Employee();
         e.setNumEmployee(req.employeeNumber());
-        return getEmployee(req, e);
+        return mapToEntity(req, e);
     }
 
-    private Employee getEmployee(EmployeeRequest req, Employee existing) {
+    private Employee mapToEntity(EmployeeRequest req, Employee existing) {
         existing.setName(req.name());
         existing.setGrouper1(req.grouper1());
         existing.setGrouper2(req.grouper2());
