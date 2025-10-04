@@ -1,177 +1,235 @@
 package com.web.back.services;
 
-import com.web.back.builders.ChangeLogBuilder;
-import com.web.back.clients.ZWSHREvaluacioClient;
-import com.web.back.mappers.EvaluationDtoMapper;
-import com.web.back.mappers.EvaluationMapper;
-import com.web.back.mappers.PostEvaluationApiRequestMapper;
-import com.web.back.model.dto.EvaluationDto;
-import com.web.back.model.entities.ChangeLog;
-import com.web.back.model.entities.Evaluation;
-import com.web.back.model.enumerators.StatusRegistroEnum;
-import com.web.back.model.requests.CambioHorarioRequest;
-import com.web.back.model.requests.PostEvaluationApiRequest;
-import com.web.back.model.requests.EvaluationRequest;
-import com.web.back.model.responses.CambioHorarioResponse;
-import com.web.back.model.responses.CustomResponse;
-import com.web.back.repositories.EvaluationRepository;
-import com.web.back.repositories.UserRepository;
-import com.web.back.utils.DateUtil;
+import com.web.back.model.dto.FieldValue;
+import com.web.back.model.dto.evaluation.TheoreticalScheduleDto;
+import com.web.back.model.dto.evaluation.TheoreticalTimesheetDay;
+import com.web.back.model.entities.*;
+import com.web.back.model.enumerators.ScheduleStatus;
+import com.web.back.repositories.*;
+import com.web.back.utils.FieldValueDictionary;
+import org.apache.commons.jexl3.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpClientErrorException;
+import reactor.util.function.Tuples;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.lang.reflect.Field;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.temporal.ChronoField;
+import java.util.*;
 
 @Service
+@Transactional
 public class EvaluationService {
-    private final UserRepository userRepository;
-    private final EvaluationRepository evaluationRepository;
-    private final ZWSHREvaluacioClient zwshrEvaluacioClient;
-    private final ChangeLogService changeLogService;
 
-    public EvaluationService(UserRepository userRepository, EvaluationRepository evaluationRepository, ZWSHREvaluacioClient zwshrEvaluacioClient, ChangeLogService changeLogService) {
-        this.userRepository = userRepository;
-        this.evaluationRepository = evaluationRepository;
-        this.zwshrEvaluacioClient = zwshrEvaluacioClient;
-        this.changeLogService = changeLogService;
+    private final TimeRecordRepository timeRecordRepository;
+    private final TimeRuleRepository timeRuleRepository;
+    private final TimesheetTimeRuleRepository timesheetTimeRuleRepository;
+    private final EmployeeTimesheetsRepository employeeTimesheetsRepository;
+    private final FestiveDaysRepository festiveDaysRepository;
+
+    public EvaluationService(TimeRecordRepository timeRecordRepository,
+                             TimeRuleRepository timeRuleRepository,
+                             TimesheetTimeRuleRepository timesheetTimeRuleRepository, EmployeeTimesheetsRepository employeeTimesheetsRepository, FestiveDaysRepository festiveDaysRepository) {
+        this.timeRecordRepository = timeRecordRepository;
+        this.timeRuleRepository = timeRuleRepository;
+        this.timesheetTimeRuleRepository = timesheetTimeRuleRepository;
+        this.employeeTimesheetsRepository = employeeTimesheetsRepository;
+        this.festiveDaysRepository = festiveDaysRepository;
     }
 
-    public List<EvaluationDto> getAllEvaluations() {
-        return evaluationRepository.findAll().stream()
-                .map(EvaluationDtoMapper::mapFrom).toList();
-    }
+    public void generateEvaluations(Instant beginDate, Instant endDate) {
+        List<TimeRecord> timeRecords = timeRecordRepository.findAllByDateBetween(beginDate, endDate);
 
-    public List<EvaluationDto> getAllEvaluationsByFilters(String beginDate, String endDate, String sociedad, String areaNomina) {
-        return evaluationRepository.findByFechaAndAreaNominaAndSociedad(beginDate, endDate, sociedad, areaNomina)
-                .stream()
-                .map(EvaluationDtoMapper::mapFrom).toList();
-    }
-
-    @Transactional(rollbackFor = {Exception.class})
-    public Void deleteEvaluations(List<Integer> evaluationsToRemove) {
-        if (evaluationsToRemove.isEmpty()) {
-            return null;
-        }
-
-        var entitiesToRemove = evaluationRepository.findAllById(evaluationsToRemove);
-
-        evaluationRepository.deleteAll(entitiesToRemove);
-
-        return null;
-    }
-
-    @Transactional(rollbackFor = {Exception.class})
-    public void sendApprovedEvaluationsToSap(String beginDate, String endDate, String sociedad, String areaNomina) {
-        var evaluations = evaluationRepository.findByFechaAndAreaNominaAndSociedad(beginDate, endDate, sociedad, areaNomina);
-
-        evaluations = evaluations.stream()
-                .filter(evaluation -> evaluation.getApprobationLevel() != null &&
-                        evaluation.getApprobationLevel() == 0 &&
-                        !Objects.equals(evaluation.getStatusRegistro(), StatusRegistroEnum.SENT_TO_SAP.name()))
+        var employeeIds = timeRecords.stream()
+                .map(tr -> tr.getEmployee().getId())
+                .distinct()
                 .toList();
 
-        List<PostEvaluationApiRequest> request = evaluations.stream().map(PostEvaluationApiRequestMapper::mapFrom).toList();
+        List<EmployeeTimesheet> timeSheetEmployees = employeeTimesheetsRepository.findOverlappingTimesheetsByIds(employeeIds, beginDate, endDate);
 
-        if (request.isEmpty()) {
-            throw new RuntimeException("No hay evaluaciones pendientes de ser enviadas!");
-        }
+        var timeSheetIds = timeSheetEmployees.stream()
+                .map(tse -> tse.getTimesheet().getId())
+                .distinct()
+                .toList();
 
-        var response = zwshrEvaluacioClient.postEvaluation(request).block();
+        List<TimesheetTimeRule> timesheetTimeRules = timesheetTimeRuleRepository.findAllByTimesheetIdIn(timeSheetIds);
 
-        if (response != null && response.getStatusCode().is2xxSuccessful()) {
-            evaluations.forEach(evaluation -> evaluation.setStatusRegistro(StatusRegistroEnum.SENT_TO_SAP.name()));
+        var timeRuleIds = timesheetTimeRules.stream()
+                .map(tr -> tr.getTimeRule().getId())
+                .distinct()
+                .toList();
 
-            evaluationRepository.saveAll(evaluations);
-        }
+        List<TimeRule> timeRuleEntities = timeRuleRepository.findAllById(timeRuleIds);
 
-        if (response != null && !response.getStatusCode().is2xxSuccessful()) {
-            throw new HttpClientErrorException(response.getStatusCode());
+        List<FestiveDay> festiveDays = festiveDaysRepository.findAll();
+
+        var theoreticalSchedulesWithTimeRecords = generateTheoreticalSchedule(
+                employeeIds, timeRecords, timeSheetEmployees, festiveDays, beginDate, endDate);
+
+        executeLevelOneRules(theoreticalSchedulesWithTimeRecords, timesheetTimeRules, timeRuleEntities);
+
+        // Future implementation for level 2 and 3 rules can be added here
+    }
+
+    private void executeLevelOneRules(List<TheoreticalScheduleDto> theoreticalSchedulesWithTimeRecords,
+                                      List<TimesheetTimeRule> timesheetTimeRules,
+                                      List<TimeRule> timeRuleEntities) {
+        var levelOneRules = timeRuleEntities.stream()
+                .filter(tr -> tr.getLevel() == 1)
+                .sorted(Comparator.comparing(TimeRule::getSequence))
+                .toList();
+
+        for (var schedule : theoreticalSchedulesWithTimeRecords) {
+            for (var dayAndRecord : schedule.scheduleAndTimeRecords()) {
+                var day = dayAndRecord.getT1();
+                var recordOpt = dayAndRecord.getT2();
+
+                List<String> generalResults = new ArrayList<>();
+                for (var rule : levelOneRules) {
+                    var applicableRules = timesheetTimeRules.stream()
+                            .filter(ttr ->
+                                    ttr.getTimesheet().getId().equals(day.timeSheetId()) &&
+                                            ttr.getTimeRule().getId().equals(rule.getId()))
+                            .toList();
+
+                    if (applicableRules.isEmpty()) continue;
+
+                    boolean conditionsMet = evaluateConditions(day, recordOpt.orElse(null), rule.getRule());
+                    if (conditionsMet &&
+                            rule.getResultMeets() != null && !rule.getResultMeets().isEmpty()) {
+                        generalResults.add(rule.getResultMeets());
+                    }
+
+                    if(rule.isExclusive()) break;
+                }
+
+                if(!generalResults.isEmpty()) {
+                    day.withGeneralResult(String.join("|", generalResults));
+                }
+            }
         }
     }
 
-    @Transactional(rollbackFor = {Exception.class})
-    public CustomResponse<List<EvaluationDto>> updateEvaluations(EvaluationRequest request) {
-        List<EvaluationDto> updatedEvaluations = request.getUpdatedEvaluations();
-        var user = userRepository.findByUsername(request.getUserName()).orElseThrow();
+    private boolean evaluateConditions(TheoreticalTimesheetDay day, TimeRecord record, String rule) {
+        var fieldValues = getFieldValues(day, record);
 
-        if (updatedEvaluations == null || updatedEvaluations.isEmpty()) {
-            return new CustomResponse<List<EvaluationDto>>().ok(null, "No hay cambios que actualizar");
+        return evaluateRule(rule, fieldValues);
+    }
+
+    private static Map<String, Object> getFieldValues(TheoreticalTimesheetDay day, TimeRecord record) {
+        Map<String, Object> values = new HashMap<>();
+        for (FieldValue fv : FieldValueDictionary.getDictionary()) {
+            Object source = fv.getSourceClass().equals(TimeRecord.class) ? record : day;
+            try {
+                Field field = fv.getSourceClass().getDeclaredField(fv.getFieldName());
+                field.setAccessible(true);
+                Object value = field.get(source);
+                values.put(fv.getKey(), value);
+            } catch (Exception e) {
+                values.put(fv.getKey(), null);
+            }
         }
+        return values;
+    }
 
-        List<Evaluation> persistedEmployees;
-        List<Evaluation> evaluationEntities;
-        List<ChangeLog> changesSummary = new ArrayList<>();
+    public static boolean evaluateRule(String rule, Map<String, Object> fieldValues) {
+        JexlEngine jexl = new JexlBuilder().create();
+        JexlExpression expression = jexl.createExpression(rule);
+        JexlContext context = new MapContext(fieldValues);
 
-        if (request.getIsTimesheetUpdateOnly()) {
-            persistedEmployees = evaluationRepository.findAllByEmployeeNumber(updatedEvaluations.stream().map(EvaluationDto::getNumEmpleado).toList());
-            var cambioHorariosResponse = applyCambiosDeHorario(updatedEvaluations);
+        Object result = expression.evaluate(context);
+        if (result instanceof Boolean) {
+            return (Boolean) result;
+        } else if (result instanceof Number) {
+            return ((Number) result).doubleValue() != 0;
+        }
+        return false;
+    }
 
-            if (cambioHorariosResponse.isError()) {
-                return new CustomResponse<List<EvaluationDto>>().badRequest("Error al aplicar cambio de Horario");
+    private List<TheoreticalScheduleDto> generateTheoreticalSchedule(List<UUID> employeeIds,
+                                                                     List<TimeRecord> timeRecords,
+                                                                     List<EmployeeTimesheet> timeSheetEmployees,
+                                                                     List<FestiveDay> festiveDays,
+                                                                     Instant beginDate,
+                                                                     Instant endDate) {
+        List<TheoreticalScheduleDto> result = new ArrayList<>();
+
+        for (Instant date = beginDate; !date.isAfter(endDate); date = date.plus(Duration.ofDays(1))) {
+            Instant currentDate = date;
+            boolean isFestive = festiveDays.stream()
+                    .anyMatch(fd -> fd.getDay().equals(currentDate.get(ChronoField.DAY_OF_MONTH))
+                            && fd.getMonth().equals(currentDate.get(ChronoField.MONTH_OF_YEAR)));
+
+            if (isFestive) {
+                for (UUID employeeId : employeeIds) {
+                    addScheduleDay(result, employeeId, date, null, ScheduleStatus.FERI, timeRecords, currentDate);
+                }
+                continue;
             }
 
-            evaluationEntities = mapAuthorizedCambiosHorario(cambioHorariosResponse.getData(), persistedEmployees);
+            var timesheetsForDate = timeSheetEmployees.stream()
+                    .filter(ets ->
+                            !currentDate.isBefore(ets.getFromDate()) && !currentDate.isAfter(ets.getToDate()))
+                    .toList();
 
-            evaluationEntities.forEach(updated -> {
-                var original = persistedEmployees.stream().filter(f -> f.getId().equals(updated.getId())).findFirst().orElseThrow();
+            for (var employeeTimesheet : timesheetsForDate) {
+                var employeeId = employeeTimesheet.getEmployee().getId();
+                var timesheet = employeeTimesheet.getTimesheet();
+                addScheduleDay(result, employeeId, date, timesheet, ScheduleStatus.NORM, timeRecords, currentDate);
+            }
 
-                changesSummary.addAll(ChangeLogBuilder.buildFrom(original, updated, user));
-            });
+            var employeesWithoutTimesheets = employeeIds.stream()
+                    .filter(eid -> timesheetsForDate.stream()
+                            .noneMatch(ets -> ets.getEmployee().getId().equals(eid)))
+                    .toList();
+
+            for (UUID employeeId : employeesWithoutTimesheets) {
+                addScheduleDay(result, employeeId, date, null, ScheduleStatus.DESC, timeRecords, currentDate);
+            }
+        }
+
+        return result;
+    }
+
+    private void addScheduleDay(List<TheoreticalScheduleDto> result,
+                                UUID employeeId,
+                                Instant date,
+                                Timesheet timesheet,
+                                ScheduleStatus status,
+                                List<TimeRecord> timeRecords,
+                                Instant currentDate) {
+        TheoreticalTimesheetDay theoreticalDay = getTheoreticalDay(date, timesheet, status);
+
+        var employeeTimeRecord = timeRecords.stream()
+                .filter(tr -> tr.getEmployee().getId().equals(employeeId) && tr.getDate().equals(currentDate))
+                .findFirst();
+
+        TheoreticalScheduleDto dto = result.stream()
+                .filter(d -> d.employeeId().equals(employeeId.toString()))
+                .findFirst()
+                .orElseGet(() -> {
+                    TheoreticalScheduleDto newDto = new TheoreticalScheduleDto(employeeId.toString(), new ArrayList<>());
+                    result.add(newDto);
+                    return newDto;
+                });
+
+        dto.scheduleAndTimeRecords().add(Tuples.of(theoreticalDay, employeeTimeRecord));
+    }
+
+    private static TheoreticalTimesheetDay getTheoreticalDay(Instant date, Timesheet timesheet, ScheduleStatus status) {
+        TheoreticalTimesheetDay theoreticalDay;
+        if (ScheduleStatus.NORM.equals(status) && timesheet != null) {
+            theoreticalDay = new TheoreticalTimesheetDay(
+                    date, timesheet.getId(), timesheet.getEntryTime(),
+                    timesheet.getBreakDepartureTime(), timesheet.getBreakReturnTime(),
+                    timesheet.getDepartureTime(), status.toString());
         } else {
-            persistedEmployees = evaluationRepository.findAllById(updatedEvaluations.stream().map(EvaluationDto::getId).toList());
-            evaluationEntities = updatedEvaluations.stream().map(updated -> {
-                var original = persistedEmployees.stream().filter(f -> f.getId().equals(updated.getId())).findFirst().orElseThrow();
-
-                changesSummary.addAll(ChangeLogBuilder.buildFrom(original, updated, user));
-
-                return EvaluationMapper.mapFrom(updated, original);
-            }).toList();
+            theoreticalDay = new TheoreticalTimesheetDay(
+                    date, null, LocalTime.of(0,0), LocalTime.of(0,0),
+                    LocalTime.of(0,0), LocalTime.of(0,0), status.toString());
         }
-
-        evaluationRepository.saveAll(evaluationEntities);
-        changeLogService.LogUpdateEvaluationsChanges(changesSummary);
-
-        return new CustomResponse<List<EvaluationDto>>().ok(
-                evaluationEntities.stream().map(EvaluationDtoMapper::mapFrom).toList()
-        );
-    }
-
-    private CustomResponse<List<CambioHorarioResponse>> applyCambiosDeHorario(List<EvaluationDto> updatedEmployees) {
-        var employee = updatedEmployees.get(0);
-        var dateTimesheetChange = DateUtil.toStringYYYYMMDD(employee.getFecha());
-
-        var timeSheetUpdate = new CambioHorarioRequest(employee.getNumEmpleado(), dateTimesheetChange, employee.getHorario());
-
-        var updatesToApply = List.of(timeSheetUpdate);
-
-        return zwshrEvaluacioClient.postCambioHorario(dateTimesheetChange, dateTimesheetChange, updatesToApply)
-                .map(result -> new CustomResponse<List<CambioHorarioResponse>>().ok(result)).block();
-    }
-
-    private List<Evaluation> mapAuthorizedCambiosHorario(List<CambioHorarioResponse> cambioHorarios, List<Evaluation> persistedEmployees) {
-        List<Evaluation> affectedEmployees = new ArrayList<>();
-
-        if (cambioHorarios == null || cambioHorarios.isEmpty()) return affectedEmployees;
-
-        for (Evaluation evaluation : persistedEmployees) {
-            var affectedRegistryForEmployee = cambioHorarios.stream()
-                    .filter(f -> Objects.equals(f.empleado(), evaluation.getNumEmpleado()))
-                    .filter(f -> f.fecha().equals(DateUtil.toStringYYYYMMDD(evaluation.getFecha())))
-                    .findFirst();
-
-            affectedRegistryForEmployee.ifPresent(cambioHorarioResponse ->
-                    affectedEmployees.add(
-                            EvaluationMapper.mapFromTimeSheetUpdate(
-                                    evaluation,
-                                    cambioHorarioResponse.estatusGen(),
-                                    cambioHorarioResponse.horario()
-                            )
-                    ));
-        }
-
-        return affectedEmployees;
+        return theoreticalDay;
     }
 }

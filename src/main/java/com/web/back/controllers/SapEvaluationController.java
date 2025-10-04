@@ -4,7 +4,7 @@ import com.web.back.filters.PermissionsFilter;
 import com.web.back.model.dto.EvaluationDto;
 import com.web.back.model.requests.EvaluationRequest;
 import com.web.back.model.responses.CustomResponse;
-import com.web.back.services.EvaluationService;
+import com.web.back.services.SapEvaluationService;
 import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -15,14 +15,14 @@ import java.util.List;
 
 @RequestMapping("/evaluation/")
 @RestController
-@Tag(name = "Evaluations")
-public class EvaluationController {
+@Tag(name = "SAP Evaluations")
+public class SapEvaluationController {
     private final JwtService jwtService;
-    private final EvaluationService evaluationService;
+    private final SapEvaluationService sapEvaluationService;
 
-    public EvaluationController(JwtService jwtService, EvaluationService evaluationService) {
+    public SapEvaluationController(JwtService jwtService, SapEvaluationService sapEvaluationService) {
         this.jwtService = jwtService;
-        this.evaluationService = evaluationService;
+        this.sapEvaluationService = sapEvaluationService;
     }
 
     @PutMapping(value="evaluations")
@@ -30,7 +30,7 @@ public class EvaluationController {
     {
         request.setUserName(jwtService.getCurrentUserName());
 
-        return ResponseEntity.ok(evaluationService.updateEvaluations(request));
+        return ResponseEntity.ok(sapEvaluationService.updateEvaluations(request));
     }
 
     @PostMapping(value="evaluations")
@@ -42,7 +42,7 @@ public class EvaluationController {
         }
 
         try {
-            evaluationService.sendApprovedEvaluationsToSap(request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
+            sapEvaluationService.sendApprovedEvaluationsToSap(request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
 
             return ResponseEntity.ok(new CustomResponse<Void>().ok(null, "Evaluaciones enviadas exitosamente!"));
         }catch (Exception e) {
@@ -64,7 +64,7 @@ public class EvaluationController {
             return ResponseEntity.status(401).build();
         }
 
-        return ResponseEntity.ok(new CustomResponse<List<EvaluationDto>>().ok(evaluationService.getAllEvaluations()));
+        return ResponseEntity.ok(new CustomResponse<List<EvaluationDto>>().ok(sapEvaluationService.getAllEvaluations()));
     }
 
     @GetMapping(value = "evaluations/filtered")
@@ -74,7 +74,7 @@ public class EvaluationController {
             return ResponseEntity.status(401).build();
         }
 
-        return ResponseEntity.ok(new CustomResponse<List<EvaluationDto>>().ok(evaluationService.getAllEvaluationsByFilters(beginDate, endDate, sociedad, areaNomina)));
+        return ResponseEntity.ok(new CustomResponse<List<EvaluationDto>>().ok(sapEvaluationService.getAllEvaluationsByFilters(beginDate, endDate, sociedad, areaNomina)));
     }
 
     @DeleteMapping(value = "evaluations")
@@ -84,6 +84,6 @@ public class EvaluationController {
             return ResponseEntity.status(401).build();
         }
 
-        return ResponseEntity.ok(new CustomResponse<Void>().ok(evaluationService.deleteEvaluations(evaluationsToRemove)));
+        return ResponseEntity.ok(new CustomResponse<Void>().ok(sapEvaluationService.deleteEvaluations(evaluationsToRemove)));
     }
 }
