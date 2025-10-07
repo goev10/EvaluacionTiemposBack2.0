@@ -13,9 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.util.function.Tuples;
 
 import java.lang.reflect.Field;
+import java.sql.Time;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.*;
 
@@ -28,22 +30,32 @@ public class EvaluationService {
     private final TimesheetTimeRuleRepository timesheetTimeRuleRepository;
     private final EmployeeTimesheetsRepository employeeTimesheetsRepository;
     private final FestiveDaysRepository festiveDaysRepository;
+    private final EvaluationRepository evaluationRepository;
 
     public EvaluationService(TimeRecordRepository timeRecordRepository,
                              TimeRuleRepository timeRuleRepository,
-                             TimesheetTimeRuleRepository timesheetTimeRuleRepository, EmployeeTimesheetsRepository employeeTimesheetsRepository, FestiveDaysRepository festiveDaysRepository) {
+                             TimesheetTimeRuleRepository timesheetTimeRuleRepository,
+                             EmployeeTimesheetsRepository employeeTimesheetsRepository,
+                             FestiveDaysRepository festiveDaysRepository,
+                             EvaluationRepository evaluationRepository) {
         this.timeRecordRepository = timeRecordRepository;
         this.timeRuleRepository = timeRuleRepository;
         this.timesheetTimeRuleRepository = timesheetTimeRuleRepository;
         this.employeeTimesheetsRepository = employeeTimesheetsRepository;
         this.festiveDaysRepository = festiveDaysRepository;
+        this.evaluationRepository = evaluationRepository;
     }
 
     public void generateEvaluations(Instant beginDate, Instant endDate) {
         List<TimeRecord> timeRecords = timeRecordRepository.findAllByDateBetween(beginDate, endDate);
 
-        var employeeIds = timeRecords.stream()
-                .map(tr -> tr.getEmployee().getId())
+        var employees = timeRecords.stream()
+                .map(TimeRecord::getEmployee)
+                .distinct()
+                .toList();
+
+        var employeeIds = employees.stream()
+                .map(Employee::getId)
                 .distinct()
                 .toList();
 
@@ -51,6 +63,12 @@ public class EvaluationService {
 
         var timeSheetIds = timeSheetEmployees.stream()
                 .map(tse -> tse.getTimesheet().getId())
+                .distinct()
+                .toList();
+
+        var timeSheets = timeSheetEmployees.stream()
+                .map(EmployeeTimesheet::getTimesheet)
+                .filter(timesheet -> !timeSheetIds.contains(timesheet.getId()))
                 .distinct()
                 .toList();
 
@@ -69,8 +87,69 @@ public class EvaluationService {
                 employeeIds, timeRecords, timeSheetEmployees, festiveDays, beginDate, endDate);
 
         executeLevelOneRules(theoreticalSchedulesWithTimeRecords, timesheetTimeRules, timeRuleEntities);
+        saveEvaluations(theoreticalSchedulesWithTimeRecords, employees, timeSheets);
+        // Future implementation for level 2
+    }
 
-        // Future implementation for level 2 and 3 rules can be added here
+    private void saveEvaluations(List<TheoreticalScheduleDto> theoreticalSchedulesWithTimeRecords,
+                                 List<Employee> employees,
+                                 List<Timesheet> timesheets) {
+        for (var schedule : theoreticalSchedulesWithTimeRecords) {
+            for (var dayAndRecord : schedule.scheduleAndTimeRecords()) {
+                var employeeId = UUID.fromString(schedule.employeeId());
+                var day = dayAndRecord.getT1();
+                var generalResult = day.generalResult();
+                LocalTime entryTime = null;
+                LocalTime breakDepartureTime = null;
+                LocalTime breakReturnTime = null;
+                LocalTime departureTime = null;
+                Integer turn = null;
+                var employee = employees.stream()
+                        .filter(e -> e.getId().equals(employeeId))
+                        .findFirst();
+                var timesheet = timesheets.stream()
+                        .filter(t -> t.getId().equals(day.timeSheetId()))
+                        .findFirst();
+                var timesheetIdentifier = timesheet.map(Timesheet::getTimesheetIdentifier).orElse(null);
+
+                var recordOpt = dayAndRecord.getT2();
+                if (recordOpt.isPresent()) {
+                    var record = recordOpt.get();
+                    entryTime = record.getEntryTime();
+                    breakDepartureTime = record.getBreakDepartureTime();
+                    breakReturnTime = record.getBreakReturnTime();
+                    departureTime = record.getDepartureTime();
+                    turn = record.getTurn();
+                }
+
+                Evaluation evaluation = new Evaluation();
+                evaluation.setResultadoGeneral(generalResult);
+                evaluation.setFecha(day.date().atZone(ZoneId.systemDefault()).toLocalDate());
+                evaluation.setStatusRegistro(null);
+                evaluation.setTurn(turn);
+
+                // Do I need to store the time record in the evaluation entity?
+                if(entryTime != null){
+                    evaluation.setHoraEntrada(Time.valueOf(entryTime));
+                }
+                if (breakDepartureTime != null){
+                    evaluation.setHoraPausa(Time.valueOf(breakDepartureTime));
+                }
+                if (breakReturnTime != null){
+                    evaluation.setHoraRegresoPausa(Time.valueOf(breakReturnTime));
+                }
+                if (departureTime != null) {
+                    evaluation.setHoraSalida(Time.valueOf(departureTime));
+                }
+
+                // In the future set the employee and timesheet ids instead
+                evaluation.setHorario(timesheetIdentifier);
+                evaluation.setEmployeeName(employee.get().getName());
+                evaluation.setNumEmpleado(employee.get().getNumEmployee());
+
+                evaluationRepository.save(evaluation);
+            }
+        }
     }
 
     private void executeLevelOneRules(List<TheoreticalScheduleDto> theoreticalSchedulesWithTimeRecords,
@@ -94,11 +173,14 @@ public class EvaluationService {
                                             ttr.getTimeRule().getId().equals(rule.getId()))
                             .toList();
 
+                    //TODO: checar si orden no se pierde
                     if (applicableRules.isEmpty()) continue;
 
-                    boolean conditionsMet = evaluateConditions(day, recordOpt.orElse(null), rule.getRule());
+                    var fieldValues = getFieldValues(day, recordOpt.orElse(null));
+                    boolean conditionsMet = evaluateRule(rule.getRule(), fieldValues);
                     if (conditionsMet &&
-                            rule.getResultMeets() != null && !rule.getResultMeets().isEmpty()) {
+                            rule.getResultMeets() != null &&
+                            !rule.getResultMeets().isEmpty()) {
                         generalResults.add(rule.getResultMeets());
                     }
 
@@ -112,12 +194,6 @@ public class EvaluationService {
         }
     }
 
-    private boolean evaluateConditions(TheoreticalTimesheetDay day, TimeRecord record, String rule) {
-        var fieldValues = getFieldValues(day, record);
-
-        return evaluateRule(rule, fieldValues);
-    }
-
     private static Map<String, Object> getFieldValues(TheoreticalTimesheetDay day, TimeRecord record) {
         Map<String, Object> values = new HashMap<>();
         for (FieldValue fv : FieldValueDictionary.getDictionary()) {
@@ -126,6 +202,20 @@ public class EvaluationService {
                 Field field = fv.getSourceClass().getDeclaredField(fv.getFieldName());
                 field.setAccessible(true);
                 Object value = field.get(source);
+
+                // Transform java.sql.Time to minutes
+                if (value instanceof Time) {
+                    value = ((Time) value).toLocalTime().getHour() * 60 + ((Time) value).toLocalTime().getMinute();
+                }
+
+                if (value instanceof LocalTime) {
+                    value = ((LocalTime) value).getHour() * 60 + ((LocalTime) value).getMinute();
+                }
+
+                if (value instanceof Instant) {
+                    value = ((Instant) value).toEpochMilli();
+                }
+
                 values.put(fv.getKey(), value);
             } catch (Exception e) {
                 values.put(fv.getKey(), null);
@@ -142,10 +232,9 @@ public class EvaluationService {
         Object result = expression.evaluate(context);
         if (result instanceof Boolean) {
             return (Boolean) result;
-        } else if (result instanceof Number) {
-            return ((Number) result).doubleValue() != 0;
+        } else {
+            throw new IllegalArgumentException("Rule did not evaluate to a boolean value");
         }
-        return false;
     }
 
     private List<TheoreticalScheduleDto> generateTheoreticalSchedule(List<UUID> employeeIds,
@@ -168,6 +257,8 @@ public class EvaluationService {
                 }
                 continue;
             }
+
+            //tod: check day of week
 
             var timesheetsForDate = timeSheetEmployees.stream()
                     .filter(ets ->
@@ -227,8 +318,8 @@ public class EvaluationService {
                     timesheet.getDepartureTime(), status.toString());
         } else {
             theoreticalDay = new TheoreticalTimesheetDay(
-                    date, null, LocalTime.of(0,0), LocalTime.of(0,0),
-                    LocalTime.of(0,0), LocalTime.of(0,0), status.toString());
+                    date, null, null, null,
+                    null, null, status.toString());
         }
         return theoreticalDay;
     }
