@@ -1,4 +1,4 @@
-package com.web.back.services;
+package com.web.back.process;
 
 import com.web.back.model.dto.FieldValue;
 import com.web.back.model.dto.evaluation.TheoreticalScheduleDto;
@@ -23,8 +23,7 @@ import java.util.*;
 
 @Service
 @Transactional
-public class EvaluationService {
-
+public class EvaluationAtLevelOneProcess {
     private final TimeRecordRepository timeRecordRepository;
     private final TimeRuleRepository timeRuleRepository;
     private final TimesheetTimeRuleRepository timesheetTimeRuleRepository;
@@ -32,7 +31,7 @@ public class EvaluationService {
     private final FestiveDaysRepository festiveDaysRepository;
     private final EvaluationRepository evaluationRepository;
 
-    public EvaluationService(TimeRecordRepository timeRecordRepository,
+    public EvaluationAtLevelOneProcess(TimeRecordRepository timeRecordRepository,
                              TimeRuleRepository timeRuleRepository,
                              TimesheetTimeRuleRepository timesheetTimeRuleRepository,
                              EmployeeTimesheetsRepository employeeTimesheetsRepository,
@@ -167,14 +166,12 @@ public class EvaluationService {
 
                 List<String> generalResults = new ArrayList<>();
                 for (var rule : levelOneRules) {
-                    var applicableRules = timesheetTimeRules.stream()
-                            .filter(ttr ->
+                    var ruleAppliesFroCurrentTimesheet = timesheetTimeRules.stream()
+                            .anyMatch(ttr ->
                                     ttr.getTimesheet().getId().equals(day.timeSheetId()) &&
-                                            ttr.getTimeRule().getId().equals(rule.getId()))
-                            .toList();
+                                            ttr.getTimeRule().getId().equals(rule.getId()));
 
-                    //TODO: checar si orden no se pierde
-                    if (applicableRules.isEmpty()) continue;
+                    if (!ruleAppliesFroCurrentTimesheet) continue;
 
                     var fieldValues = getFieldValues(day, recordOpt.orElse(null));
                     boolean conditionsMet = evaluateRule(rule.getRule(), fieldValues);
@@ -258,11 +255,13 @@ public class EvaluationService {
                 continue;
             }
 
-            //tod: check day of week
-
             var timesheetsForDate = timeSheetEmployees.stream()
                     .filter(ets ->
-                            !currentDate.isBefore(ets.getFromDate()) && !currentDate.isAfter(ets.getToDate()))
+                            !currentDate.isBefore(ets.getFromDate()) &&
+                            !currentDate.isAfter(ets.getToDate()) &&
+                            ets.getTimesheet().getDaysOfTheWeek() == currentDate.get(ChronoField.DAY_OF_WEEK) &&
+                            ((ets.getTimesheet().getDaysOfTheWeek() & (1 << (currentDate.get(ChronoField.DAY_OF_WEEK)))) != 0)
+                    )
                     .toList();
 
             for (var employeeTimesheet : timesheetsForDate) {

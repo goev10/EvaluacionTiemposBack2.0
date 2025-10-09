@@ -102,7 +102,7 @@ CREATE TABLE time_rules (
                        level INT,
                        sequence INT,
                        rule VARCHAR(255),
-                       result_meets VARCHAR(255),
+                       result_meets VARCHAR(10),
                        exclusive BOOLEAN
 );
 
@@ -115,3 +115,13 @@ CREATE TABLE timesheet_time_rule (
                                      CONSTRAINT fk_timesheet_time_rule_time_rule FOREIGN KEY (time_rule_id) REFERENCES time_rules(id)
 );
 
+CREATE TABLE periods (
+    id SERIAL PRIMARY KEY,
+    grouper_1 VARCHAR(50),
+    grouper_2 VARCHAR(50),
+    grouper_3 VARCHAR(50),
+    grouper_4 VARCHAR(50),
+    grouper_5 VARCHAR(50),
+    from_date DATE NOT NULL,
+    to_date DATE NOT NULL
+);
