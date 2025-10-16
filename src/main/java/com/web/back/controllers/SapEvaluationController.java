@@ -6,6 +6,8 @@ import com.web.back.model.requests.EvaluationRequest;
 import com.web.back.model.responses.CustomResponse;
 import com.web.back.services.EvaluationService;
 import com.web.back.services.JwtService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -14,11 +16,12 @@ import java.util.List;
 
 @RequestMapping("/evaluation/")
 @RestController
-public class EvaluationController {
+public class SapEvaluationController {
+    private static final Logger logger = LoggerFactory.getLogger(SapEvaluationController.class);
     private final JwtService jwtService;
     private final EvaluationService evaluationService;
 
-    public EvaluationController(JwtService jwtService, EvaluationService evaluationService) {
+    public SapEvaluationController(JwtService jwtService, EvaluationService evaluationService) {
         this.jwtService = jwtService;
         this.evaluationService = evaluationService;
     }
@@ -39,11 +42,15 @@ public class EvaluationController {
         }
 
         try {
-            evaluationService.sendApprovedEvaluationsToSap(request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
+            var username = jwtService.getUsernameFromToken(bearerToken);
+            logger.info("Request to send approved evaluations to SAP from user: {}, for dates: {} - {}, sociedad: {}, areaNomina: {}",
+                    username, request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
+
+            evaluationService.sendApprovedEvaluationsToSap(username, request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
 
             return ResponseEntity.ok(new CustomResponse<Void>().ok(null, "Evaluaciones enviadas exitosamente!"));
         }catch (Exception e) {
-            String errorMessage = "";
+            String errorMessage;
 
             if (e instanceof HttpClientErrorException) {
                 errorMessage = "Error al enviar las evaluaciones a SAP. Contacta al administrador!";
