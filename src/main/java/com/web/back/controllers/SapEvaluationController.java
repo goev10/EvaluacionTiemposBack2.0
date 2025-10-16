@@ -7,6 +7,8 @@ import com.web.back.model.responses.CustomResponse;
 import com.web.back.services.SapEvaluationService;
 import com.web.back.services.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -17,6 +19,7 @@ import java.util.List;
 @RestController
 @Tag(name = "SAP Evaluations")
 public class SapEvaluationController {
+    private static final Logger logger = LoggerFactory.getLogger(SapEvaluationController.class);
     private final JwtService jwtService;
     private final SapEvaluationService sapEvaluationService;
 
@@ -42,7 +45,11 @@ public class SapEvaluationController {
         }
 
         try {
-            sapEvaluationService.sendApprovedEvaluationsToSap(request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
+            var username = jwtService.getCurrentUserName();
+            logger.info("Request to send approved evaluations to SAP from user: {}, for dates: {} - {}, sociedad: {}, areaNomina: {}",
+                    username, request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
+
+            sapEvaluationService.sendApprovedEvaluationsToSap(username, request.getBeginDate(), request.getEndDate(), request.getSociedad(), request.getAreaNomina());
 
             return ResponseEntity.ok(new CustomResponse<Void>().ok(null, "Evaluaciones enviadas exitosamente!"));
         }catch (Exception e) {
