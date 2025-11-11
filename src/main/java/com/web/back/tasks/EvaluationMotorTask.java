@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -26,6 +26,20 @@ public class EvaluationMotorTask {
         this.evaluationAtLevelTwoProcess = evaluationAtLevelTwoProcess;
     }
 
+    public void executeProcess(LocalDate beginDate, LocalDate endDate,
+                               String grouper1, String grouper2, String grouper3, String grouper4, String grouper5) {
+        running = true;
+        String runId = UUID.randomUUID().toString();
+        logger.info("Manual task started. Run ID: {}", runId);
+        try {
+            evaluationAtLevelOneProcess.generateEvaluations(beginDate, endDate, grouper1, grouper2, grouper3, grouper4, grouper5);
+            evaluationAtLevelTwoProcess.executeLevelTwoRules(beginDate, endDate);
+        } finally {
+            running = false;
+            logger.info("Manual task finished. Run ID: {}", runId);
+        }
+    }
+
     // Runs every day at 04:00 AM
     @Scheduled(cron = "0 0 4 * * ?")
     public void runDailyTask() {
@@ -33,8 +47,8 @@ public class EvaluationMotorTask {
         String runId = UUID.randomUUID().toString();
         logger.info("Scheduled task started. Run ID: {}", runId);
         try {
-            Instant beginDate = Instant.now().minus(Duration.ofDays(15));
-            Instant endDate = Instant.now();
+            LocalDate beginDate = LocalDate.now().minus(Duration.ofDays(15));
+            LocalDate endDate = LocalDate.now();
             evaluationAtLevelOneProcess.generateEvaluations(beginDate, endDate);
             evaluationAtLevelTwoProcess.executeLevelTwoRules(beginDate, endDate);
         } finally {

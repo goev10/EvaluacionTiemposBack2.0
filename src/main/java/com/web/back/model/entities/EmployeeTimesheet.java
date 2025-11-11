@@ -9,6 +9,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -34,9 +35,9 @@ public class EmployeeTimesheet {
 
     @NotNull
     @Column(name = "from_date", nullable = false)
-    private Instant fromDate;
+    private LocalDate fromDate;
 
     @NotNull
     @Column(name = "to_date", nullable = false)
-    private Instant toDate;
+    private LocalDate toDate;
 }

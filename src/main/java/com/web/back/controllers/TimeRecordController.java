@@ -1,6 +1,7 @@
 package com.web.back.controllers;
 
 import com.web.back.model.dto.TimeRecordDto;
+import com.web.back.model.requests.TimeRecordGeneralRequest;
 import com.web.back.model.requests.TimeRecordRequest;
 import com.web.back.services.TimeRecordService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +35,12 @@ public class TimeRecordController {
     public ResponseEntity<TimeRecordDto> create(@RequestBody TimeRecordRequest request) {
         var dto = timeRecordService.create(request);
         return ResponseEntity.ok(dto);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<TimeRecordDto> create(@RequestBody List<TimeRecordGeneralRequest> request) {
+        timeRecordService.registerTimeMarks(request);
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{id}")

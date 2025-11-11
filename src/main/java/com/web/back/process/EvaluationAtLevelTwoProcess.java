@@ -5,8 +5,8 @@ import com.web.back.repositories.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -36,10 +36,10 @@ public class EvaluationAtLevelTwoProcess {
         this.employeeRepository = employeeRepository;
     }
 
-    public void executeLevelTwoRules(Instant beginDate, Instant endDate) {
+    public void executeLevelTwoRules(LocalDate beginDate, LocalDate endDate) {
         var evaluationsToUpdate = new ArrayList<Evaluation>();
         var evaluations = evaluationRepository.findAllByFechaBetween(
-                LocalDate.from(beginDate), LocalDate.from(endDate));
+                beginDate, endDate);
 
         var groupedByEmployee = evaluations.stream()
                 .collect(Collectors.groupingBy(Evaluation::getNumEmpleado));
@@ -102,8 +102,8 @@ public class EvaluationAtLevelTwoProcess {
                     var timeSheetForDate = timeSheetEmployees.stream()
                             .filter(tse ->
                                     tse.getEmployee().getId().equals(employee.getId()) &&
-                                            !tse.getFromDate().isAfter(Instant.from(evaluation.getFecha())) &&
-                                            !tse.getToDate().isBefore(Instant.from(evaluation.getFecha()))
+                                            !tse.getFromDate().isAfter(evaluation.getFecha()) &&
+                                            !tse.getToDate().isBefore(evaluation.getFecha())
                             )
                             .findFirst()
                             .orElse(null);

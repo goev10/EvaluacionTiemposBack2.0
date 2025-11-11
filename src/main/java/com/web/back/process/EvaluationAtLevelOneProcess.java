@@ -14,12 +14,10 @@ import reactor.util.function.Tuples;
 
 import java.lang.reflect.Field;
 import java.sql.Time;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.time.temporal.ChronoField;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -30,28 +28,54 @@ public class EvaluationAtLevelOneProcess {
     private final EmployeeTimesheetsRepository employeeTimesheetsRepository;
     private final FestiveDaysRepository festiveDaysRepository;
     private final EvaluationRepository evaluationRepository;
+    private final EmployeeRepository employeeRepository;
 
     public EvaluationAtLevelOneProcess(TimeRecordRepository timeRecordRepository,
-                             TimeRuleRepository timeRuleRepository,
-                             TimesheetTimeRuleRepository timesheetTimeRuleRepository,
-                             EmployeeTimesheetsRepository employeeTimesheetsRepository,
-                             FestiveDaysRepository festiveDaysRepository,
-                             EvaluationRepository evaluationRepository) {
+                                       TimeRuleRepository timeRuleRepository,
+                                       TimesheetTimeRuleRepository timesheetTimeRuleRepository,
+                                       EmployeeTimesheetsRepository employeeTimesheetsRepository,
+                                       FestiveDaysRepository festiveDaysRepository,
+                                       EvaluationRepository evaluationRepository,
+                                       EmployeeRepository employeeRepository) {
         this.timeRecordRepository = timeRecordRepository;
         this.timeRuleRepository = timeRuleRepository;
         this.timesheetTimeRuleRepository = timesheetTimeRuleRepository;
         this.employeeTimesheetsRepository = employeeTimesheetsRepository;
         this.festiveDaysRepository = festiveDaysRepository;
         this.evaluationRepository = evaluationRepository;
+        this.employeeRepository = employeeRepository;
     }
 
-    public void generateEvaluations(Instant beginDate, Instant endDate) {
-        List<TimeRecord> timeRecords = timeRecordRepository.findAllByDateBetween(beginDate, endDate);
+    public void generateEvaluations(LocalDate beginDate, LocalDate endDate,
+                                    String grouper1, String grouper2, String grouper3, String grouper4, String grouper5) {
+        var employees = employeeRepository.findAllByGrouper1AndGrouper2AndGrouper3AndGrouper4AndGrouper5(
+                grouper1, grouper2, grouper3, grouper4, grouper5
+        );
 
-        var employees = timeRecords.stream()
-                .map(TimeRecord::getEmployee)
+        var employeeIds = employees.stream()
+                .map(Employee::getId)
                 .distinct()
                 .toList();
+
+        List<TimeRecord> timeRecords = timeRecordRepository.findAllByDateBetweenAndEmployee_IdIn(beginDate, endDate, employeeIds);
+
+        generateEvaluations(beginDate, endDate, employees, timeRecords);
+    }
+
+    public void generateEvaluations(LocalDate beginDate, LocalDate endDate) {
+        List<TimeRecord> timeRecords = timeRecordRepository.findAllByDateBetween(beginDate, endDate);
+
+        var employeesIds = timeRecords.stream()
+                .map(TimeRecord::getEmployeeId)
+                .collect(Collectors.toSet());
+
+        var employees = employeeRepository.findAllByIdIn(employeesIds);
+
+        generateEvaluations(beginDate, endDate, employees, timeRecords);
+    }
+
+    private void generateEvaluations(LocalDate beginDate, LocalDate endDate,
+                                    List<Employee> employees, List<TimeRecord> timeRecords) {
 
         var employeeIds = employees.stream()
                 .map(Employee::getId)
@@ -123,7 +147,7 @@ public class EvaluationAtLevelOneProcess {
 
                 Evaluation evaluation = new Evaluation();
                 evaluation.setResultadoGeneral(generalResult);
-                evaluation.setFecha(day.date().atZone(ZoneId.systemDefault()).toLocalDate());
+                evaluation.setFecha(day.date());
                 evaluation.setStatusRegistro(null);
                 evaluation.setTurn(turn);
 
@@ -238,19 +262,19 @@ public class EvaluationAtLevelOneProcess {
                                                                      List<TimeRecord> timeRecords,
                                                                      List<EmployeeTimesheet> timeSheetEmployees,
                                                                      List<FestiveDay> festiveDays,
-                                                                     Instant beginDate,
-                                                                     Instant endDate) {
+                                                                     LocalDate beginDate,
+                                                                     LocalDate endDate) {
         List<TheoreticalScheduleDto> result = new ArrayList<>();
 
-        for (Instant date = beginDate; !date.isAfter(endDate); date = date.plus(Duration.ofDays(1))) {
-            Instant currentDate = date;
+        for (LocalDate date = beginDate; !date.isAfter(endDate); date = date.plus(Duration.ofDays(1))) {
+            LocalDate currentDate = date;
             boolean isFestive = festiveDays.stream()
-                    .anyMatch(fd -> fd.getDay().equals(currentDate.get(ChronoField.DAY_OF_MONTH))
-                            && fd.getMonth().equals(currentDate.get(ChronoField.MONTH_OF_YEAR)));
+                    .anyMatch(fd -> fd.getDay().equals(currentDate.getDayOfMonth())
+                            && fd.getMonth().equals(currentDate.getMonthValue()));
 
             if (isFestive) {
                 for (UUID employeeId : employeeIds) {
-                    addScheduleDay(result, employeeId, date, null, ScheduleStatus.FERI, timeRecords, currentDate);
+                    addScheduleDay(result, employeeId, null, ScheduleStatus.FERI, timeRecords, currentDate);
                 }
                 continue;
             }
@@ -267,7 +291,7 @@ public class EvaluationAtLevelOneProcess {
             for (var employeeTimesheet : timesheetsForDate) {
                 var employeeId = employeeTimesheet.getEmployee().getId();
                 var timesheet = employeeTimesheet.getTimesheet();
-                addScheduleDay(result, employeeId, date, timesheet, ScheduleStatus.NORM, timeRecords, currentDate);
+                addScheduleDay(result, employeeId, timesheet, ScheduleStatus.NORM, timeRecords, currentDate);
             }
 
             var employeesWithoutTimesheets = employeeIds.stream()
@@ -276,7 +300,7 @@ public class EvaluationAtLevelOneProcess {
                     .toList();
 
             for (UUID employeeId : employeesWithoutTimesheets) {
-                addScheduleDay(result, employeeId, date, null, ScheduleStatus.DESC, timeRecords, currentDate);
+                addScheduleDay(result, employeeId, null, ScheduleStatus.DESC, timeRecords, currentDate);
             }
         }
 
@@ -285,15 +309,14 @@ public class EvaluationAtLevelOneProcess {
 
     private void addScheduleDay(List<TheoreticalScheduleDto> result,
                                 UUID employeeId,
-                                Instant date,
                                 Timesheet timesheet,
                                 ScheduleStatus status,
                                 List<TimeRecord> timeRecords,
-                                Instant currentDate) {
-        TheoreticalTimesheetDay theoreticalDay = getTheoreticalDay(date, timesheet, status);
+                                LocalDate currentDate) {
+        TheoreticalTimesheetDay theoreticalDay = getTheoreticalDay(currentDate, timesheet, status);
 
         var employeeTimeRecord = timeRecords.stream()
-                .filter(tr -> tr.getEmployee().getId().equals(employeeId) && tr.getDate().equals(currentDate))
+                .filter(tr -> tr.getEmployeeId().equals(employeeId) && tr.getDate().equals(currentDate))
                 .findFirst();
 
         TheoreticalScheduleDto dto = result.stream()
@@ -308,7 +331,7 @@ public class EvaluationAtLevelOneProcess {
         dto.scheduleAndTimeRecords().add(Tuples.of(theoreticalDay, employeeTimeRecord));
     }
 
-    private static TheoreticalTimesheetDay getTheoreticalDay(Instant date, Timesheet timesheet, ScheduleStatus status) {
+    private static TheoreticalTimesheetDay getTheoreticalDay(LocalDate date, Timesheet timesheet, ScheduleStatus status) {
         TheoreticalTimesheetDay theoreticalDay;
         if (ScheduleStatus.NORM.equals(status) && timesheet != null) {
             theoreticalDay = new TheoreticalTimesheetDay(

@@ -9,6 +9,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -28,6 +29,10 @@ public class TimeRecord {
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
+    @Column(name = "employee_id", insertable = false, updatable = false, nullable = false, columnDefinition = "CHAR(36)")
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private UUID employeeId;
+
     @NotNull
     @Column(name = "turn", nullable = false)
     private Integer turn;
@@ -45,5 +50,5 @@ public class TimeRecord {
     private LocalTime departureTime;
 
     @Column(name = "date")
-    private Instant date;
+    private LocalDate date;
 }

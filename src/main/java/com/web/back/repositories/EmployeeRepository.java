@@ -14,4 +14,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     Optional<Employee> findByNumEmployee(String numEmployee);
 
     List<Employee> findAllByNumEmployeeIn(Set<String> numEmployee);
+
+    List<Employee> findAllByIdIn(Set<UUID> employeeIds);
+
+    List<Employee> findAllByGrouper1AndGrouper2AndGrouper3AndGrouper4AndGrouper5(
+            String grouper1, String grouper2, String grouper3, String grouper4, String grouper5);
 }
