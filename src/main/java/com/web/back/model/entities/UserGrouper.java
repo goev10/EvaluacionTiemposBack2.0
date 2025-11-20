@@ -12,7 +12,7 @@ import lombok.Setter;
 @Table(name = "user_groupers")
 public class UserGrouper {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "id", nullable = false)
     private Long id;
 

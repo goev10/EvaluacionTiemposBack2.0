@@ -10,7 +10,7 @@ import lombok.Setter;
 @Table(name = "impersonations")
 public class Impersonation {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "id", nullable = false)
     private Long id;
 

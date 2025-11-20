@@ -18,8 +18,8 @@ import java.util.Map;
 @Table(name = "evaluation")
 public class Evaluation {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @Column(name = "id")
     private Integer id;
 
     @Column(name = "fecha")

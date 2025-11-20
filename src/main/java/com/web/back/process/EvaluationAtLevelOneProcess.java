@@ -111,7 +111,6 @@ public class EvaluationAtLevelOneProcess {
 
         executeLevelOneRules(theoreticalSchedulesWithTimeRecords, timesheetTimeRules, timeRuleEntities);
         saveEvaluations(theoreticalSchedulesWithTimeRecords, employees, timeSheets);
-        // Future implementation for level 2
     }
 
     private void saveEvaluations(List<TheoreticalScheduleDto> theoreticalSchedulesWithTimeRecords,
@@ -167,8 +166,11 @@ public class EvaluationAtLevelOneProcess {
 
                 // In the future set the employee and timesheet ids instead
                 evaluation.setHorario(timesheetIdentifier);
-                evaluation.setEmployeeName(employee.get().getName());
-                evaluation.setNumEmpleado(employee.get().getNumEmployee());
+
+                if(employee.isPresent()){
+                    evaluation.setEmployeeName(employee.get().getName());
+                    evaluation.setNumEmpleado(employee.get().getNumEmployee());
+                }
 
                 evaluationRepository.save(evaluation);
             }
@@ -266,7 +268,7 @@ public class EvaluationAtLevelOneProcess {
                                                                      LocalDate endDate) {
         List<TheoreticalScheduleDto> result = new ArrayList<>();
 
-        for (LocalDate date = beginDate; !date.isAfter(endDate); date = date.plus(Duration.ofDays(1))) {
+        for (LocalDate date = beginDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             LocalDate currentDate = date;
             boolean isFestive = festiveDays.stream()
                     .anyMatch(fd -> fd.getDay().equals(currentDate.getDayOfMonth())

@@ -13,7 +13,7 @@ import java.time.Instant;
 @Table(name = "change_log")
 public class ChangeLog {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "id", nullable = false)
     private Integer id;
 

@@ -18,7 +18,7 @@ import java.util.UUID;
 @Table(name = "timesheets")
 public class Timesheet {
     @Id
-    @UuidGenerator(style = UuidGenerator.Style.RANDOM) // For Hibernate 6+
+    @UuidGenerator(style = UuidGenerator.Style.RANDOM)
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "CHAR(36)")
     @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id;

@@ -3,9 +3,7 @@ package com.web.back.controllers;
 import com.web.back.tasks.EvaluationMotorTask;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
@@ -19,14 +17,18 @@ public class TaskController {
         this.evaluationMotorTask = evaluationMotorTask;
     }
 
-    @RequestMapping("/is-running")
+    @GetMapping("/is-running")
     public ResponseEntity<Boolean> isTaskRunning() {
         return ResponseEntity.ok(evaluationMotorTask.isRunning());
     }
 
     @PostMapping("/trigger")
     public ResponseEntity<Void> triggerTask(LocalDate beginDate, LocalDate endDate,
-                                            String grouper1, String grouper2, String grouper3, String grouper4, String grouper5) {
+                                            @RequestParam(required = false) String grouper1,
+                                            @RequestParam(required = false) String grouper2,
+                                            @RequestParam(required = false) String grouper3,
+                                            @RequestParam(required = false) String grouper4,
+                                            @RequestParam(required = false) String grouper5) {
         new Thread(() ->
                 evaluationMotorTask.executeProcess(beginDate, endDate, grouper1, grouper2, grouper3, grouper4, grouper5)
         ).start();
