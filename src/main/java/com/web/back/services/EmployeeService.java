@@ -93,6 +93,12 @@ public class EmployeeService {
 
         var evaluations = Objects.requireNonNull(zwshrEvaluacioClient.getEmployees(userName, beginDate, endDate, sociedad, areaNomina).block());
 
+        var latestEvaluationWitthinPeriod = evaluationRepository.findLatestEvaluationsByAreaNominaAndSociedadAndFechaBetween(areaNomina, sociedad, beginDate, endDate);
+
+        if (latestEvaluationWitthinPeriod != null && !latestEvaluationWitthinPeriod.isEmpty()) {
+            evaluationRepository.deleteAll(latestEvaluationWitthinPeriod);
+        }
+
         var existentEmployees = evaluationRepository.findByFechaAndAreaNominaAndSociedad(beginDate, endDate, sociedad, areaNomina);
 
         evaluations.forEach(employee -> processEmployee(evaluationDtos, existentEmployees, employee, extraEmployeesData, sociedad, areaNomina));

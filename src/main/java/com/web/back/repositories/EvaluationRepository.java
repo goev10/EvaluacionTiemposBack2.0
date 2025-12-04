@@ -41,4 +41,25 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Integer>
             nativeQuery = true
     )
     List<Evaluation> findAllByEmployeeNumber(@Param("employee_numbers") List<String> employeeNumbers);
+
+    @Query(
+            value = "SELECT * FROM evaluation " +
+                    "WHERE CAST(fecha AS DATE) = (" +
+                    "  SELECT MAX(CAST(e2.fecha AS DATE)) " +
+                    "  FROM evaluation e2 " +
+                    "  WHERE CAST(e2.fecha AS DATE) BETWEEN :beginDate AND :endDate " +
+                    "    AND e2.area_nomina = :areaNomina " +
+                    "    AND e2.sociedad = :sociedad" +
+                    ") " +
+                    "AND CAST(fecha AS DATE) BETWEEN :beginDate AND :endDate " +
+                    "AND area_nomina = :areaNomina " +
+                    "AND sociedad = :sociedad",
+            nativeQuery = true
+    )
+    List<Evaluation> findLatestEvaluationsByAreaNominaAndSociedadAndFechaBetween(
+            @Param("areaNomina") String areaNomina,
+            @Param("sociedad") String sociedad,
+            @Param("beginDate") String beginDate,
+            @Param("endDate") String endDate
+    );
 }
